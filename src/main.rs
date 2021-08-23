@@ -8,7 +8,7 @@ use serenity::{
     prelude::*,
 };
 
-use serde_json::{Map, Value};
+use serde_json::{to_value, Map, Value};
 
 struct Handler(Vec<ChannelId>, Map<String, Value>);
 
@@ -17,9 +17,18 @@ impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
         let Self(channels, thread_opts) = self;
         if !msg.author.bot && channels.contains(&msg.channel_id) {
+            let opts = parse_message_title(&msg).map(|name| {
+                let mut opts = thread_opts.clone();
+                opts.insert("name".to_string(), to_value(name).unwrap());
+                opts
+            });
             match ctx
                 .http
-                .create_public_thread(msg.channel_id.0, msg.id.0, &thread_opts)
+                .create_public_thread(
+                    msg.channel_id.0,
+                    msg.id.0,
+                    opts.as_ref().unwrap_or(thread_opts),
+                )
                 .await
             {
                 Ok(_thread) => {}
@@ -77,4 +86,17 @@ async fn main() {
     if let Err(err) = client.start().await {
         eprintln!("Client error: {:?}", err);
     }
+}
+
+fn parse_message_title(msg: &Message) -> Option<String> {
+    msg.content
+        .contains(": ")
+        .then(|| &msg.content)
+        .and_then(|c| {
+            c.lines()
+                .next()
+                .and_then(|l| l.split(": ").next())
+                .filter(|s| !s.is_empty() && s.len() <= 100)
+                .map(str::to_string)
+        })
 }
