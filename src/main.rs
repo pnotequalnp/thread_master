@@ -9,6 +9,7 @@ use serenity::{
 };
 
 use serde_json::{to_value, Map, Value};
+use url::Url;
 
 struct Handler(Vec<ChannelId>, Map<String, Value>);
 
@@ -18,6 +19,7 @@ impl EventHandler for Handler {
         let Self(channels, thread_opts) = self;
         if !msg.author.bot && channels.contains(&msg.channel_id) {
             let opts = parse_message_title(&msg).map(|name| {
+                eprintln!("{:?}", name);
                 let mut opts = thread_opts.clone();
                 opts.insert("name".to_string(), to_value(name).unwrap());
                 opts
@@ -88,6 +90,25 @@ async fn main() {
     }
 }
 
+fn only<T>(mut xs: impl Iterator<Item = T>) -> Option<T> {
+    let x = xs.next();
+    if let None = xs.next() {
+        x
+    } else {
+        None
+    }
+}
+
+fn parse_url_title(s: &str) -> Option<String> {
+    let url = Url::parse(s).ok()?;
+    match url.host_str()? {
+        "github.com" | "gitlab.com" => url.path_segments()?.nth(1).map(str::to_string),
+        _ => only(url.path_segments()?.filter(|p| !p.is_empty()))
+            .or(url.host_str())
+            .map(str::to_string),
+    }
+}
+
 fn parse_message_title(msg: &Message) -> Option<String> {
     msg.content
         .contains(": ")
@@ -99,4 +120,5 @@ fn parse_message_title(msg: &Message) -> Option<String> {
                 .filter(|s| !s.is_empty() && s.len() <= 100)
                 .map(str::to_string)
         })
+        .or(msg.content.lines().find_map(parse_url_title))
 }

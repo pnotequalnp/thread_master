@@ -6,6 +6,7 @@ edition = "2018"
 
 [dependencies]
 serde_json = "1"
+url = "2"
 
 [dependencies.serenity]
 git = "https://github.com/serenity-rs/serenity"
